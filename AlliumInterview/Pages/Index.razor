@@ -1,0 +1,111 @@
+﻿@page "/"
+@using AlliumInterview.Models;
+@using AlliumInterview.Services.Abstractions;
+
+@inject IJSRuntime JsRuntime
+@inject ISharePointFileService SharePointFileService
+
+<PageTitle>Allium Interview</PageTitle>
+
+@if(files != null)
+{
+    <div class="text-center">
+        <h1 class="display-4">Welcome</h1>
+
+        <table class="table">
+            <thead>
+                <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">File name</th>
+                    <th scope="col">Time created (UTC)</th>
+                    <th scope="col">Time last modified (UTC)</th>
+                    <th scope="col">Options</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if(@files != null)
+                {
+                    @foreach (var file in @files!.Select((value, index) => new { value, index }))
+                    {
+                        <tr class="table-row">
+                            <th scope="row">@(file.index + 1)</th>
+                            <td>@file.value.Name</td>
+                            <td>@file.value.TimeCreated</td>
+                            <td>@file.value.TimeLastModified</td>
+                            <td>
+                                <button type="button" class="btn btn-primary" @onclick="@(() => SelectFile(file.value.Name))">Sign</button>
+                            </td>
+
+                            
+                        </tr>
+
+                    }
+                }
+            
+            </tbody>
+        </table>
+    </div>
+}
+else
+{
+    <div style="margin-top:10rem" class="loader"></div>
+}
+
+<div id="snackbar">@message</div>
+@if(DialogOpen)
+{
+    <ModalDialog Title="Confirm" Text="Do you want to continue?" OnClose="@onDialogClose"/>
+}
+
+
+@code {
+    private List<SharePointFile>? files;
+    private string message = default!;
+    private string filename = default!;
+
+    public bool DialogOpen { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        files = await SharePointFileService.GetFilesList();
+    }
+
+    private async Task onDialogClose(bool accepted)
+    {
+        DialogOpen = false;
+        StateHasChanged();
+        if(accepted)
+            await SignDocument(filename); 
+    }
+
+    private void openDialog()
+    {
+        DialogOpen = true;
+        StateHasChanged();
+    }
+
+    private void SelectFile(string fileName)
+    {
+        filename = fileName;
+        openDialog();
+    }
+
+    private async Task SignDocument(string fileName)
+    {
+        files = null;
+        var result = await SharePointFileService.DownloadFile(fileName);
+        if(result.Success is true)
+        {
+            message = "Document succesfully signed!";
+            files = await SharePointFileService.GetFilesList();
+        }
+        else
+        {
+            message = result.Message;
+        }
+
+
+        await JsRuntime.InvokeVoidAsync("showToaster");
+    }
+
+}
